@@ -13,8 +13,8 @@
 # 
 # 1.0 - December 26,2006 - Initial TurtleWatch release. Only plotted 65.5 contour
 # 1.5 - December 26, 2007 - Changed to plot both 63.5 and 65.5 contours and plot translucent red strip between contours
-# 1.5.1 - July 16, 2014 - Had to update Aviso links to plot currents
 # 1.5.1 - July 16, 2014 - Had to update Aviso links to plot currents. Now using link on Pampa near-real time weekly data /s03/altim_merged/data/alt_nrt
+# 1.5.2 - July 16, 2014 - Fixed bug in code when getting AVISO files. Changed /AV/ to /MG/
 
 use Time::Local;
 use Time::Local 'timelocal_nocheck';
@@ -336,7 +336,7 @@ sub getuvfiles ($) {
    #Find most recent ufile
 
     $ufile = ""; $count = 0;
-    until ($ufile =~ /AV/) {
+    until ($ufile =~ /MG/) { #Changed in v1.5.2 from /AV/
        my $templocaltime = time(); my $tempuvtime = $templocaltime - 60*60*24*$count;
        my $tempuvtimecal = strftime("%Y%j", localtime($tempuvtime));
        $ufile = `find $AVISODIR -name *${tempuvtimecal}_u.grd -print`;
