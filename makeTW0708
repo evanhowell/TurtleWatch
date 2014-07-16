@@ -6,6 +6,15 @@
 #
 # This script needs certain files, such as the noaa background which 
 # was created in Illustrator.
+#
+#
+# Author - Evan A. Howell (evan.howell@noaa.gov)
+# Version History
+# 
+# 1.0 - December 26,2006 - Initial TurtleWatch release. Only plotted 65.5 contour
+# 1.5 - December 26, 2007 - Changed to plot both 63.5 and 65.5 contours and plot translucent red strip between contours
+# 1.5.1 - July 16, 2014 - Had to update Aviso links to plot currents
+# 1.5.1 - July 16, 2014 - Had to update Aviso links to plot currents. Now using link on Pampa near-real time weekly data /s03/altim_merged/data/alt_nrt
 
 use Time::Local;
 use Time::Local 'timelocal_nocheck';
@@ -22,6 +31,7 @@ $GMTDIR = "/usr/local/gmt/bin";
 #$GMTDIR = "/home/ehowell/GMT/GMT4.4.0/bin";
 $WORKDIR = "/home/ehowell/projects/Turtle_Front/TW0708";
 $XFERDIR = "/s03/xfer";
+$AVISODIR = "/s03/altim_merged/data/alt_nrt";
 
 $vector = 90;
 $vectorlegend = $vector / 3;
@@ -222,11 +232,11 @@ system("cp $pngfile $XFERDIR/today.png");
 system("cp $WORKDIR/today_mid.png $XFERDIR/today_mid.png");
 system("cp $WORKDIR/today_thumb.png $XFERDIR/today_thumb.png");
 
-system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov,Andrew.Torres\@noaa.gov < /dev/null");
+#system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov,Andrew.Torres\@noaa.gov < /dev/null");
 #system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,seastarorders\@digitalglobe.com,Walter.Machado\@noaa.gov,Andrew.Torres\@noaa.gov < /dev/null");
 #Not working: orders\@geoeye.com,seastarorders\@digitalglobe.com, sean\@pop-hawaii.com
 #system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov < /dev/null");
-#system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov < /dev/null");
+system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov < /dev/null");
 #system("display $pngfile");
 
 print("$subject\n");
@@ -260,10 +270,10 @@ system("cp $pngfile_viet $XFERDIR/today_viet.png");
 system("cp $WORKDIR/today_viet_mid.png $XFERDIR/today_viet_mid.png");
 system("cp $WORKDIR/today_viet_thumb.png $XFERDIR/today_viet_thumb.png");
 
-system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov, Andrew.Torres\@noaa.gov < /dev/null");
+#system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov, Andrew.Torres\@noaa.gov < /dev/null");
 #Not working: keithsymington\@yahoo.ca,sean\@pop-hawaii.com
 #system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov < /dev/null");
-#system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov < /dev/null");
+system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov < /dev/null");
 #system("display $pngfile_viet");
 
 print("$subject_viet\n");
@@ -297,9 +307,9 @@ system("cp $pngfile_korean $XFERDIR/today_korean.png");
 system("cp $WORKDIR/today_korean_mid.png $XFERDIR/today_korean_mid.png");
 system("cp $WORKDIR/today_korean_thumb.png $XFERDIR/today_korean_thumb.png");
 
-system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov,Andrew.Torres\@noaa.gov < /dev/null");
+#system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov,Andrew.Torres\@noaa.gov < /dev/null");
 #system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov < /dev/null");
-#system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov < /dev/null");
+system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov < /dev/null");
 #system("display $pngfile_korean");
 
 print("$subject_korean\n");
@@ -321,6 +331,7 @@ system("rm $contpsfile") if (-e $contpsfile);
 # Done, Subroutines below
 ##########################################################################
 sub getuvfiles ($) {
+# Version 1.5.1 change: Directory /s03/aviso/data/weekly/ to /s03/altim_merged/data/alt_nrt. Instead of calling static filename now AVISO dir set as variable at top
    my $herenowtime = shift;
    #Find most recent ufile
 
@@ -328,7 +339,7 @@ sub getuvfiles ($) {
     until ($ufile =~ /AV/) {
        my $templocaltime = time(); my $tempuvtime = $templocaltime - 60*60*24*$count;
        my $tempuvtimecal = strftime("%Y%j", localtime($tempuvtime));
-       $ufile = `find /s03/aviso/data/weekly/ -name *${tempuvtimecal}_u.grd -print`;
+       $ufile = `find $AVISODIR -name *${tempuvtimecal}_u.grd -print`;
        #force specific ufile
        #$ufile = "/s03/aviso/data/weekly/AV2012040_2012046_u.grd";
        $count++;
