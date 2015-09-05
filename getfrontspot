@@ -1,0 +1,19 @@
+#!/bin/ksh
+
+YEARS="2004 2005 2006 2007"
+let sday=273
+let eday=275
+
+for year in $YEARS; do
+    while (($sday <= 333)); do
+        file="/s03/gac/data/3day/AG${year}${sday}_${year}${eday}_sst.grd"
+        if [[ -a $file ]]; then
+            print "$file"
+
+        fi
+        let sday=sday+1
+        let eday=eday+1
+    done
+    let sday=273
+    let eday=275
+done

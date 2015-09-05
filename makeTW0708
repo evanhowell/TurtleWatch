@@ -65,7 +65,7 @@ $gacfile = $match[0];chomp($gacfile);
 
 if (! -e $gacfile) {
    $subject = "There is no file $gacfile on pampa ${mon}/${mday}/${year}";
-   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov,Lucas.Moxey\@noaa.gov < /dev/null");
+   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov < /dev/null");
    exit -1;
 }
 

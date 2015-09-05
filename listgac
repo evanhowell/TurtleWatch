@@ -1,0 +1,6 @@
+#!/usr/bin/ksh
+ls /s03/gac/data/3day/AG*.grd > gacfiles
+
+findfile="AG`d2j -f 9/1/04`_`d2j -f 9/3/04`_sst.grd"
+
+grep -A 10000 $findfile gacfiles
