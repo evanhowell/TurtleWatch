@@ -1,87 +1,115 @@
 #!/usr/bin/perl
 
-# This is a perl script to create the 2007-2008 TurtleWatch product
-# The main difference this year is that we are using two contours
-# 63.5 and 65.5 which forms a polygon. 
+###########################################
+# NOAA PIFSC TurtleWatch script
+# This is a perl script to create the TurtleWatch product for leatherbacks and loggerheads
+# This version of TurtleWatch appears in the manuscript Howell, E.A., Hoover, A., Benson, S.R., Bailey, H., Polovina, J.J., Seminoff, J.A., & Dutton, P.H. (2015) Enhancing the TurtleWatch product for leatherback sea turtles, a dynamic habitat model for ecosystem-based management. Fisheries Oceanography, 1-12.
+#
+# There are major differences in this version including the expansion of the map range to 180/230/25/50 and new zones for leatherbacks
+# East of 140W is red, the isotherm zones are 62.6 (17C) and 65.3 (18.5C), and 72.3 (22.4C) and 74.1 (23.4C) which form two polygons. 
+# - Added command line arguments using GetOpt::Long
+# - Changed $nowtime variable to $gactime to calculate time based on the SST file and not localtime if specific file is passed.
 #
 # This script needs certain files, such as the noaa background which 
 # was created in Illustrator.
 #
+# The TurtleWatch image is built and placed in the xfer directory, where it is automatically transferred to the PIFSC webserver
 #
-# Author - Evan A. Howell (evan.howell@noaa.gov)
-# Version History
-# 
-# 1.0 - December 26,2006 - Initial TurtleWatch release. Only plotted 65.5 contour
-# 1.5 - December 26, 2007 - Changed to plot both 63.5 and 65.5 contours and plot translucent red strip between contours
-# 1.5.1 - July 16, 2014 - Had to update Aviso links to plot currents. Now using link on Pampa near-real time weekly data /s03/altim_merged/data/alt_nrt
-# 1.5.2 - July 16, 2014 - Fixed bug in code when getting AVISO files. Changed /AV/ to /MG/
+# VERSION HISTORY
+# Version 2.0, 06/15/2013, EAH (evan.howell@noaa.gov) - Completely rewritten to add leatherback ranges.
+# 1.6, 04/30/2009, EAH - Changed to use GMT 3.4.2
+# 1.5, 12/26/2007, EAH - Major change was to expand the spatial range of the TurtleWatch map and to change the recommended zone from all SST < 18.5 to the range 17.5-18.5C.
+# 1.0, 12/26/2006, EAH - Initial release of TurtleWatch product
+###########################################
 
 use Time::Local;
 use Time::Local 'timelocal_nocheck';
 use File::Basename;
 use POSIX qw(strftime);
-#use Date::Calc qw(
-#   Date_to_Days
-#   Day_of_Year
-#   Add_Delta_Days
-#);
+use Getopt::Long;
 
-#Changed this 4/30/2009 - EAH
+#set up default option values
+my $verbose = '';
+my $debug = '';
+my $gacfile = '';
+my $nomail = '';
+my $help = '';
+
+GetOptions('help' => \$help, 'verbose|quiet' => \$verbose, 'debug' => \$debug, 'gacfile=s' => \$gacfile, 'nomail' => \$nomail, 'english_only' => \$english_only);
+
+if ($help) {
+    print("Usage: makeTurtleWatch [--help] [--verbose|quiet] [-debug] [--nomail] [--english_only] [gacfile=<filename>]\n");
+    exit 0;
+}
+
+if ($debug) {
+    $nomail = 1; #set nomail if in debug mode
+    $verbose = 1; #set verbose if in debug mode
+    print("***IN DEBUG MODE - NOMAIL AND VERBOSE FLAGS SET***\n");
+}
+
+#Set up other variable defaults
 $GMTDIR = "/usr/local/gmt/bin";
-#$GMTDIR = "/home/ehowell/GMT/GMT4.4.0/bin";
-$WORKDIR = "/home/ehowell/projects/Turtle_Front/TW0708";
+$WORKDIR = "/home/ehowell/projects/Turtle_Front/TurtleWatch";
 $XFERDIR = "/s03/xfer";
-$AVISODIR = "/s03/altim_merged/data/alt_nrt";
+$SSTDIR = "/s03/gac/data/3day";
 
 $vector = 90;
 $vectorlegend = $vector / 3;
 $limit = 5;
-$vectorcolor = "75/75/75";
-#$vectorcolor = "255/255/255";
+$vectorcolor = "75/75/75"; #$vectorcolor = "255/255/255"; #To make white
 
 system("$GMTDIR/gmtset DEGREE_FORMAT 3");
 system("$GMTDIR/gmtset BASEMAP_TYPE plain");
 system("$GMTDIR/gmtset LABEL_FONT_SIZE 16");
-system("$GMTDIR/gmtset COLOR_NAN 255/255/255");
-#system("$GMTDIR/gmtset COLOR_NAN 125/125/125");
+system("$GMTDIR/gmtset COLOR_NAN 255/255/255"); #system("$GMTDIR/gmtset COLOR_NAN 125/125/125"); #grey NANs
 
 #get today's and tomorrow's date
-#my @charmonths = qw( Junk January February March April May June Jul Aug Sep Oct Nov Dec );
 ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(); $year += 1900; $mon++; 
 $nowlocaltime = time(); $tomorrowlocaltime = $nowlocaltime + 60*60*24;
 $now_string = strftime("%B %02e, %Y %H:%M%p %Z", localtime);
-$tom_string = strftime("%B %02e, %Y 04:00AM %Z", localtime($tomorrowlocaltime));
-
+$tom_string = strftime("%B %02e, %Y 04:00AM %Z", localtime($tomorrowlocaltime)); #Time next TurtleWatch image will be created
 $nowtime = sprintf("%4d%03d",$year,$yday);
 
 $subject = "Everything worked fine for English Version $mon/$mday/$year";
 $subject_viet = "Everything worked fine for Vietnamese Version $mon/$mday/$year";
 $subject_korean = "Everything worked fine for Korean Version $mon/$mday/$year";
-#match file from list
-@gacfiles = `ls /s03/gac/data/3day/AG201*`;
-@match = grep /$nowtime/, @gacfiles; 
-$gacfile = $match[0];chomp($gacfile);
-#$gacfile = "/s03/gac/data/3day/AG2014130_2014132_sst.grd"; #Force specific file...
+
+print("Using SST file $gacfile\n") if $verbose == 1;
+#Check if gacfile provided on command line, otherwise grab latest GAC 3-day file from pampa.
+if (!$gacfile) { #match if gacfile is not already provided.
+    print("matching gacfile from list\n") if $verbose == 1;
+    @gacfiles = `ls $SSTDIR/AG20[1-9]*`;#match file from list, good until 12/31/2099!
+    @match = grep /$nowtime/, @gacfiles; 
+    $gacfile = $match[0];chomp($gacfile);
+} else {
+    $gacfile = "$SSTDIR/$gacfile";
+}
+
+print("Using SST file $gacfile\n") if $verbose == 1;
+$gactime = substr(basename($gacfile), 10,7);# pull second date from gacfile used
 
 if (! -e $gacfile) {
    $subject = "There is no file $gacfile on pampa ${mon}/${mday}/${year}";
-   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov < /dev/null");
+   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov < /dev/null") if !$nomail;
+   print("$subject\n") if $verbose == 1;
    exit -1;
 }
 
-@uvfiles = &getuvfiles($nowtime);
-$contfile = "cont_65.5_0.xyz";
+#Call subroutine getuvfiles to find the uvfiles relating to gacfile time.
+print("Matching AVISO files to date $gactime\n") if $verbose == 1;
+@uvfiles = &getuvfiles($gactime);
+print("Using files $ufile and $vfile\n") if $verbose;
 
-#$gacfile = $ARGV[0];
+$contfile = "cont_65.3_0.xyz";
 $psfile = "$WORKDIR/sstexample.ps";
 $psfile_viet = "$WORKDIR/sstexample_viet.ps";
 $psfile_korean = "$WORKDIR/sstexample_korean.ps";
-#$pngfile = "sstexample.png";
-$pngfile = "TW${nowtime}_image.png";
-$pngfile_viet = "TW${nowtime}_image_vm.png";
-$pngfile_korean = "TW${nowtime}_image_kn.png";
+$pngfile = "sstexample.png" if $debug;
+$pngfile = "TW${gactime}_image.png";
+$pngfile_viet = "TW${gactime}_image_vm.png";
+$pngfile_korean = "TW${gactime}_image_kn.png";
 $cptfile = "sst.cpt";
-#$cptfile = "mydata.cpt";
 
 open($tempfile, ">temp.txt");
 $shortfile = basename($gacfile);
@@ -92,7 +120,6 @@ $outtime = timelocal_nocheck(0,0,0,$temp1,0,$temp2);
 ($second, $minute, $hour, $dayOfMonth, $month, $yearOffset, $dayOfWeek, $dayOfYear, $daylightSavings) = localtime($outtime);
 $temp = $yearOffset;
 $month = $month +1; $year = $yearOffset + 1900;
-#$scday = "$month/$dayOfMonth/$year";
 $scday = strftime("%d%b%Y", localtime($outtime));
 
 $temp1 = substr($shortfile,14,3);
@@ -100,42 +127,76 @@ $temp2 = substr($shortfile,10,4);
 $outtime = timelocal_nocheck(0,0,0,$temp1,0,$temp2);
 ($second, $minute, $hour, $dayOfMonth, $month, $yearOffset, $dayOfWeek, $dayOfYear, $daylightSavings) = localtime($outtime);
 $month = $month +1; $year = $yearOffset + 1900;
-#$ecday = "$month/$dayOfMonth/$year"; #numeric
 $ecday = strftime("%d%b%Y", localtime($outtime)); #09Jan2007
 
-print("TODAY: $nowtime MATCH: $shortfile SCDAY: $scday - $ecday GACfile: $gacfile\n");
+print("TODAY: $nowtime MATCH: $shortfile SCDAY: $scday - $ecday GACfile: $gacfile\n") if $verbose;
 
 #Ranges
-#$range = "180/215/25/40";
-#$range = "185/210/27.5/37.5";
-$range = "185/220/27.5/37.5"; # New range
+#$range = "180/215/25/40"; #test range
+#$range = "185/210/27.5/37.5"; #TurtleWatch V1.0 range (2006)
+#$range = "185/220/27.5/37.5"; # TurtleWatch V1.5 range (2007)
+$range = "185/225/20.0/38.0"; # TurtleWatch V2.0 range (2013)
+
+#$twlim1 = "63.4/63.6" #<TW2.0
+#$twlim2 = "65.4/65.6" #<TW2.0
+
+$twlim1 = "62.59/62.61"; #TW2.0 17.0C
+$twlim2 = "65.29/65.31"; #TW2.0 18.5C
+$twlim3 = "72.29/72.31"; #TW2.0 22.4C
+$twlim4 = "74.09/74.11"; #TW2.0 23.4C
 
 system("$GMTDIR/grdcut $gacfile -R$range -Gtemp.grd");
 system("$GMTDIR/grdmath temp.grd 9 MUL 5 DIV 32 ADD = temp.grd");
 
 system("$GMTDIR/grdfilter temp.grd -R$range -D0 -Fm2 -I0.1/0.1 -Gtemp2.grd");
-system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.5 -Dcont -Q100 -L65.4/65.6 -W5/0/0/0 >> temp.ps");
+system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.1 -Dcont -Q100 -L$twlim2 -W5/0/0/0 >> temp.ps");
 $avgval=`awk '(\$1>190&&\$1<=210) {print \$2}' $contfile  | /home/ehowell/bin/average -s` if (-e $contfile);
 system("cp temp2.grd working.grd");
 
 $xoffset = 0.75;
+$jrange = 0.18; #(9.8/40)
 
-#system("grdmath 1 temp2.grd AND = mask.grd"); # To make the mask file
+system("grdmath 1 temp2.grd AND = mask3.grd"); # uncomment to make the mask file
 
 ###########################################################################################
 #To make opacity mask..
-system("$GMTDIR/grdcontour temp2.grd -Jm -R  -K -A0.5 -L63.4/63.6 -Dcont -W12/0/0/0 >> $psfile");
-system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.5 -L65.4/65.6 -Dcont -W12/0/0/0 >> $psfile");
-system("cat cont_63.5_0.xyz > $WORKDIR/temp.txt");
-system("cat cont_65.5_0.xyz | sort +0 -1 >> $WORKDIR/temp.txt");
-system("head -n 1 cont_63.5_0.xyz >> $WORKDIR/temp.txt");
+system("$GMTDIR/grdcontour temp2.grd -Jm -R -K -A0.1 -L$twlim1 -Dcont -W12/0/0/0 >> $psfile"); #17.0C contour
+system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.1 -L$twlim2 -Dcont -W12/0/0/0 >> $psfile");#18.5C contour
+system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.1 -L$twlim3 -Dcont -W12/0/0/0 >> $psfile");#22.4C contour
+system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.1 -L$twlim4 -Dcont -W12/0/0/0 >> $psfile");#23.4C contour
 
-system("$GMTDIR/psbasemap -Jm0.28 -R$range -X$xoffset -Y3.5 -K -Bf2.0a4/f1.00a2.0WeSn -G255/255/255 > $WORKDIR/mask.ps");
+#make 17.0-18.5C Mask first
+system("cat cont_62.6_0.xyz > $WORKDIR/temp.txt");
+system("cat cont_65.3_0.xyz | sort +0 -1 >> $WORKDIR/temp.txt");
+system("head -n 1 cont_62.6_0.xyz >> $WORKDIR/temp.txt");
+
+system("$GMTDIR/psbasemap -Jm$jrange -R -X$xoffset -Y3.5 -K -Bf2.0a4/f1.00a2.0WeSn -G255/255/255 > $WORKDIR/mask.ps");
 system("$GMTDIR/psclip $WORKDIR/temp.txt -Jm -R -K -O >> $WORKDIR/mask.ps");
 system("$GMTDIR/grdimage $WORKDIR/mask.grd -O -K -Jm -R -C$WORKDIR/maskpolar.cpt -R >> $WORKDIR/mask.ps");
 system("$GMTDIR/psclip -C -O -K >> $WORKDIR/mask.ps");
 system("$GMTDIR/psmask $WORKDIR/temp.txt -R -I0.1/0.1  -Jm -O >> $WORKDIR/mask.ps");
 system("convert -density 200x200 -rotate 90 -transparent white $WORKDIR/mask.ps $WORKDIR/mask.png");
+
+#Now make 22.4-23.4C Mask
+system("cat cont_72.3_0.xyz > $WORKDIR/temp2.txt");
+system("cat cont_74.1_0.xyz | sort +0 -1 >> $WORKDIR/temp2.txt");
+system("head -n 1 cont_74.1_0.xyz >> $WORKDIR/temp2.txt");
+
+system("$GMTDIR/psbasemap -Jm$jrange -R -X$xoffset -Y3.5 -K -Bf2.0a4/f1.00a2.0WeSn -G255/255/255 > $WORKDIR/mask2.ps");
+system("$GMTDIR/psclip $WORKDIR/temp2.txt -Jm -R -K -O >> $WORKDIR/mask2.ps");
+system("$GMTDIR/grdimage $WORKDIR/mask.grd -O -K -Jm -R -C$WORKDIR/maskpolar2.cpt -R >> $WORKDIR/mask2.ps");
+system("$GMTDIR/psclip -C -O -K >> $WORKDIR/mask2.ps");
+system("$GMTDIR/psmask $WORKDIR/temp2.txt -R -I0.1/0.1  -Jm -O >> $WORKDIR/mask2.ps");
+system("convert -density 200x200 -rotate 90 -transparent white $WORKDIR/mask2.ps $WORKDIR/mask2.png");
+
+#mask out box east of 140W #DISABLED 9/28/2013 EAH
+#system("$GMTDIR/psbasemap -Jm$jrange -R -X$xoffset -Y3.5 -K -Bf2.0a4/f1.00a2.0WeSn -G255/255/255 > $WORKDIR/mask3.ps");
+#system("$GMTDIR/psclip $WORKDIR/e140.txt -Jm -R -K -O >> $WORKDIR/mask3.ps");
+#system("$GMTDIR/grdimage $WORKDIR/mask3.grd -O -K -Jm -R -C$WORKDIR/maskpolar2.cpt -R >> $WORKDIR/mask3.ps");
+#system("$GMTDIR/psclip -C -O -K >> $WORKDIR/mask3.ps");
+#system("$GMTDIR/psmask $WORKDIR/temp2.txt -R -I0.1/0.1  -Jm -O >> $WORKDIR/mask3.ps");
+#system("convert -density 200x200 -rotate 90 -transparent white $WORKDIR/mask3.ps $WORKDIR/mask3.png");
+
 ####################################################################################
 
 system("$GMTDIR/grdmath $ufile 2 POW $vfile 2 POW ADD SQRT = mag.grd");
@@ -148,9 +209,9 @@ system("$GMTDIR/grdmath $vfile mag.grd OR = v.grd");
 &buildcptfile;
 
 #Start Plotting image, tee data to regular psfile, and vietnamese psfile
-#system("$GMTDIR/psbasemap -Jm0.28 -R$range -X$xoffset -Y3.5 -K -Bf2.0a4/f1.00a2.0WeSn | tee $psfile_viet > $psfile"); Splitting to two files below
+#system("$GMTDIR/psbasemap -Jm$jrange -R$range -X$xoffset -Y3.5 -K -Bf2.0a4/f1.00a2.0WeSn | tee $psfile_viet > $psfile"); Splitting to two files below
 #system("$GMTDIR/grdimage temp2.grd -Jm -R -O -K -C$cptfile | tee -a $psfile_viet >> $psfile");
-system("$GMTDIR/psbasemap -Jm0.28 -R$range -X$xoffset -Y3.5 -K -Bf2.0a4/f1.00a2.0WeSn | tee $psfile_korean $psfile_viet > $psfile");
+system("$GMTDIR/psbasemap -Jm$jrange -R$range -X$xoffset -Y3.5 -K -Bf2.0a4/f1.00a2.0WeSn | tee $psfile_korean $psfile_viet > $psfile");
 system("$GMTDIR/grdimage temp2.grd -Jm -R -O -K -C$cptfile | tee -a $psfile_korean $psfile_viet >> $psfile");
 
 # To add islands...
@@ -162,35 +223,41 @@ system("$GMTDIR/grdvector u.grd v.grd -R -Jm -Q0.01/0.05/0.025 -O -K -S$vector -
 #################################################################################
 # This section plots the contours...
 #
-# Uncomment the top and bottom ones to get 62.5 or 66.5
-#system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.5 -L62.4/62.6 -W12/0/0/0 >> $psfile");
-#
-# 63.5 and 65.5 to new file
-#system("$GMTDIR/grdcontour temp2.grd -Jm -R -K -X$xoffset -Y3.5 -A0.5 -L63.4/63.6 -W12/0/0/0 > contpsfile"); # was 12
-#system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -A0.5 -L65.4/65.6 -W12/0/0/0 >> contpsfile");
-#
-#  63.5 and 65.5 to psfile
-system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.5 -L63.4/63.6 -W5/0/0/0 | tee -a $psfile_korean $psfile_viet >> $psfile"); # was 12
-system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.5 -L65.4/65.6 -W5/0/0/0 | tee -a $psfile_korean $psfile_viet >> $psfile");
-#
-#system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.5 -L66.4/66.6 -W12/0/0/0 >> $psfile");
+#  62.6 and 65.3 to psfile
+system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.1 -L$twlim1 -W5/0/0/0 | tee -a $psfile_korean $psfile_viet >> $psfile"); # was 12
+system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.1 -L$twlim2 -W5/0/0/0 | tee -a $psfile_korean $psfile_viet >> $psfile");
+
+#  72.3 and 74.1 to psfile
+system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.1 -L$twlim3 -W5/0/0/0 | tee -a $psfile_korean $psfile_viet >> $psfile"); # was 12
+system("$GMTDIR/grdcontour temp2.grd -Jm -R -O -K -A0.1 -L$twlim4 -W5/0/0/0 | tee -a $psfile_korean $psfile_viet >> $psfile");
+
 #################################################################################
-#&getvals if (-e $contfile);
 
 system("$GMTDIR/pscoast -Jm -O -Di -K -G0/0/0 -R | tee -a $psfile_korean $psfile_viet >> $psfile");
 $psxoffset = 3.5;
 system("$GMTDIR/psscale -D$psxoffset/-0.8/7/0.15h -L -C$cptfile -K -O -B:\"SST (F)\": | tee -a $psfile_korean $psfile_viet >> $psfile");
-system("echo 185.0 27.0 9 0 0 LB Image Created $now_string by EAH. Next projected image date: $tom_string | $GMTDIR/pstext -Jm -D0.08c/-0.47 -R -O -K -N | tee -a >> $psfile_korean $psfile_viet $psfile");
 
+$x_1 = 185;
+$x_2 = 232;
+$x_3 = 190;
+$x_4 = 225;
+$x_5 = 228;
+
+$y_1 = 40.75;
+$y_2 = 19.5;
+$y_3 = 17.1;
+$y_4 = 17.0;
+
+system("echo $x_1 $y_2 9 0 0 LB Image Created $now_string by EAH. Next projected image date: $tom_string | $GMTDIR/pstext -Jm -D0.08c/-0.47 -R -O -K -N | tee -a >> $psfile_korean $psfile_viet $psfile");
 #Write to english file
-system("echo 185.0 37.75 12 0 0 LB Sea Surface Temperature: $scday-$ecday| $GMTDIR/pstext -Jm -R -O -N -K >> $psfile");
-system("echo 220.0 37.75 12 0 0 RB Ocean Currents: $sccday-$eccday| $GMTDIR/pstext -Jm -R -O -N -K >> $psfile");
+system("echo $x_1 $y_1 12 0 0 LB Sea Surface Temperature: $scday-$ecday| $GMTDIR/pstext -Jm -R -O -N -K >> $psfile");
+system("echo $x_2 $y_1 12 0 0 RB Ocean Currents: $sccday-$eccday| $GMTDIR/pstext -Jm -R -O -N -K >> $psfile");
 #Write only dates to Vietnamese and Korean files
-system("echo 190.0 37.75 12 0 0 LB $scday-$ecday| $GMTDIR/pstext -Jm -R -O -N -K | tee -a $psfile_korean >> $psfile_viet");
-system("echo 220.0 37.75 12 0 0 RB $sccday-$eccday| $GMTDIR/pstext -Jm -R -O -N -K | tee -a $psfile_korean >> $psfile_viet");
+system("echo $x_3 $y_1 12 0 0 LB $scday-$ecday| $GMTDIR/pstext -Jm -R -O -N -K | tee -a $psfile_korean >> $psfile_viet");
+system("echo $x_2 $y_1 12 0 0 RB $sccday-$eccday| $GMTDIR/pstext -Jm -R -O -N -K | tee -a $psfile_korean >> $psfile_viet");
 
-system("echo 214.7 25.63 90 .333333| $GMTDIR/psxy -SV0.01/0.05/0.025 -R -G0/0/0 -Jm -O -K -N | tee -a $psfile_korean $psfile_viet >> $psfile");
-system("echo 216.0 25.5 12 0 0 0 $vectorlegend cm/sec | $GMTDIR/pstext -Jm -R -O -K -N | tee -a $psfile_korean $psfile_viet >> $psfile");
+system("echo $x_4 $y_3 90 .333333| $GMTDIR/psxy -SV0.01/0.05/0.025 -R -G0/0/0 -Jm -O -K -N | tee -a $psfile_korean $psfile_viet >> $psfile");
+system("echo $x_5 $y_4 12 0 0 0 $vectorlegend cm/sec | $GMTDIR/pstext -Jm -R -O -K -N | tee -a $psfile_korean $psfile_viet >> $psfile");
 
 #Add datestamps
 #system("echo $now_string $tom_string\n");
@@ -208,6 +275,8 @@ system("$GMTDIR/psbasemap -Jm -R$range -Bf2.0a4g1.0/f1.00a2.0g1.00wesn -O | tee 
 system("convert -density 200x200 -rotate 90 $psfile $WORKDIR/temp.png");
 system("composite $WORKDIR/noaalogo_bottomleft_200.png $WORKDIR/temp.png $pngfile");
 system("composite -dissolve 65% $WORKDIR/mask.png $pngfile $pngfile"); #was 40%
+system("composite -dissolve 65% $WORKDIR/mask2.png $pngfile $pngfile"); #was 40%
+system("composite -dissolve 85% $WORKDIR/mask3.png $pngfile $pngfile"); #was 40%
 
 #if grdcontour is separate
 #system("convert -density 200x200 -transparent white -rotate 90 contpsfile $WORKDIR/temp2.png");
@@ -220,7 +289,7 @@ $subject = "Missing contour file!" if (! -e $contfile);
 
 if (! -e $pngfile) {
    $subject = "There is no image file $pngfile on pampa ${mon}/${mday}/${year}";
-   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov < /dev/null");
+   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov < /dev/null") if !$nomail;
    exit -1;
 }
 
@@ -232,14 +301,15 @@ system("cp $pngfile $XFERDIR/today.png");
 system("cp $WORKDIR/today_mid.png $XFERDIR/today_mid.png");
 system("cp $WORKDIR/today_thumb.png $XFERDIR/today_thumb.png");
 
-#system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov,Andrew.Torres\@noaa.gov < /dev/null");
-#system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,seastarorders\@digitalglobe.com,Walter.Machado\@noaa.gov,Andrew.Torres\@noaa.gov < /dev/null");
-#Not working: orders\@geoeye.com,seastarorders\@digitalglobe.com, sean\@pop-hawaii.com
-#system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov < /dev/null");
-system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov < /dev/null");
-#system("display $pngfile");
+#system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,orders\@geoeye.com,Walter.Machado\@noaa.gov,sean\@pop-hawaii.com, Andrew.Torres\@noaa.gov < /dev/null") if !$nomail;
+#system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,orders\@geoeye.com,seastarorders\@digitalglobe.com,Walter.Machado\@noaa.gov,sean\@pop-hawaii.com, Andrew.Torres\@noaa.gov < /dev/null") if !$nomail;
+#system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov < /dev/null") if !$nomail;
+system("mutt -s \"$subject\" -a $pngfile Evan.Howell\@noaa.gov < /dev/null") if !$nomail;
+system("display $pngfile") if ($debug);
 
-print("$subject\n");
+print("$subject\n") if $verbose;
+
+exit 0 if $english_only;
 
 ###########################################################################################
 #work on vietnamese file
@@ -258,7 +328,8 @@ $subject = "Missing contour file!" if (! -e $contfile);
 
 if (! -e $pngfile) {
    $subject = "There is no image file $pngfile_viet on pampa ${mon}/${mday}/${year}";
-   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov < /dev/null");
+   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov < /dev/null") if !$nomail;
+   print("$subject\n") if $verbose == 1;
    exit -1;
 }
 
@@ -270,13 +341,11 @@ system("cp $pngfile_viet $XFERDIR/today_viet.png");
 system("cp $WORKDIR/today_viet_mid.png $XFERDIR/today_viet_mid.png");
 system("cp $WORKDIR/today_viet_thumb.png $XFERDIR/today_viet_thumb.png");
 
-#system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov, Andrew.Torres\@noaa.gov < /dev/null");
-#Not working: keithsymington\@yahoo.ca,sean\@pop-hawaii.com
-#system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov < /dev/null");
-system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov < /dev/null");
-#system("display $pngfile_viet");
+#system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov,keithsymington\@yahoo.ca,sean\@pop-hawaii.com, Andrew.Torres\@noaa.gov < /dev/null") if !nomail;
+#system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov < /dev/null") if !nomail;
+#system("mutt -s \"$subject_viet\" -a $pngfile_viet Evan.Howell\@noaa.gov < /dev/null") if !nomail;
 
-print("$subject_viet\n");
+print("$subject_viet\n") if $verbose;
 
 ###########################################################################################
 #work on korean file
@@ -295,7 +364,8 @@ $subject = "Missing contour file!" if (! -e $contfile);
 
 if (! -e $pngfile) {
    $subject = "There is no image file $pngfile_korean on pampa ${mon}/${mday}/${year}";
-   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov < /dev/null");
+   system("mutt -s \"$subject\" Evan.Howell\@noaa.gov < /dev/null") if !$nomail;
+   print("$subject\n") if $verbose == 1;
    exit -1;
 }
 
@@ -307,12 +377,10 @@ system("cp $pngfile_korean $XFERDIR/today_korean.png");
 system("cp $WORKDIR/today_korean_mid.png $XFERDIR/today_korean_mid.png");
 system("cp $WORKDIR/today_korean_thumb.png $XFERDIR/today_korean_thumb.png");
 
-#system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov,Andrew.Torres\@noaa.gov < /dev/null");
-#system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov < /dev/null");
-system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov < /dev/null");
-#system("display $pngfile_korean");
-
-print("$subject_korean\n");
+#system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov,Andrew.Torres\@noaa.gov < /dev/null") if !nomail;
+#system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov,Walter.Machado\@noaa.gov < /dev/null") if !nomail;
+#system("mutt -s \"$subject_korean\" -a $pngfile_korean Evan.Howell\@noaa.gov < /dev/null") if !nomail;
+print("$subject_korean\n") if $verbose;
 
 ##########################################################################
 # Clean up
@@ -331,22 +399,21 @@ system("rm $contpsfile") if (-e $contpsfile);
 # Done, Subroutines below
 ##########################################################################
 sub getuvfiles ($) {
-# Version 1.5.1 change: Directory /s03/aviso/data/weekly/ to /s03/altim_merged/data/alt_nrt. Instead of calling static filename now AVISO dir set as variable at top
    my $herenowtime = shift;
    #Find most recent ufile
 
     $ufile = ""; $count = 0;
-    until ($ufile =~ /MG/) { #Changed in v1.5.2 from /AV/
+#Need to fix this so I can calculate based on the gacfile not the latest file.
+    until ($ufile =~ /AV/) {
        my $templocaltime = time(); my $tempuvtime = $templocaltime - 60*60*24*$count;
        my $tempuvtimecal = strftime("%Y%j", localtime($tempuvtime));
-       $ufile = `find $AVISODIR -name *${tempuvtimecal}_u.grd -print`;
+       $ufile = `find /s03/aviso/data/weekly/ -name *${tempuvtimecal}_u.grd -print`;
        #force specific ufile
        #$ufile = "/s03/aviso/data/weekly/AV2012040_2012046_u.grd";
        $count++;
     }
     chomp($ufile);
    ($vfile = $ufile) =~ s/_u/_v/;
-#   print("ufile: $ufile vfile: $vfile\n");
    $shortcurrfile = basename($ufile);
    $temp1 = substr($shortcurrfile,6,3);
    $temp2 = substr($shortcurrfile,2,4);

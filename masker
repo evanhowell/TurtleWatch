@@ -1,0 +1,6 @@
+psbasemap -Jm0.18 -R185/235/22.5/40.3 -X3.75 -Y3.5 -K -Bf2.0a4/f1.00a2.0WeSn -G255/255/255 > temp.ps
+psclip temp.txt -Jm -R -K -O >> temp.ps
+grdimage mask.grd -O -K -Jm -R -Cmaskpolar.cpt -R >> temp.ps
+psclip -C -O -K >> temp.ps
+psmask temp.txt -R -I0.1/0.1  -Jm -O >> temp.ps
+convert -density 200x200 -rotate 90 -transparent white temp.ps temp.png
