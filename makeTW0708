@@ -15,6 +15,7 @@
 # 1.5 - December 26, 2007 - Changed to plot both 63.5 and 65.5 contours and plot translucent red strip between contours
 # 1.5.1 - July 16, 2014 - Had to update Aviso links to plot currents. Now using link on Pampa near-real time weekly data /s03/altim_merged/data/alt_nrt
 # 1.5.2 - July 16, 2014 - Fixed bug in code when getting AVISO files. Changed /AV/ to /MG/
+# 1.5.3 - May 6, 2016 - Replaced 3-day GAC with 2-day GOES-POES when NOAA discontinued GAC, l.62  (MA)
 
 use Time::Local;
 use Time::Local 'timelocal_nocheck';
@@ -58,10 +59,12 @@ $subject = "Everything worked fine for English Version $mon/$mday/$year";
 $subject_viet = "Everything worked fine for Vietnamese Version $mon/$mday/$year";
 $subject_korean = "Everything worked fine for Korean Version $mon/$mday/$year";
 #match file from list
-@gacfiles = `ls /s03/gac/data/3day/AG201*`;
+@gacfiles = `ls /s03/goes-poes/data/2day/GP201*`;
+#@gacfiles = `ls /s03/gac/data/3day/AG201*`;
 @match = grep /$nowtime/, @gacfiles; 
 $gacfile = $match[0];chomp($gacfile);
 #$gacfile = "/s03/gac/data/3day/AG2014130_2014132_sst.grd"; #Force specific file...
+#$gacfile = $ARGV[0]; #Load GACfile from first argument.
 
 if (! -e $gacfile) {
    $subject = "There is no file $gacfile on pampa ${mon}/${mday}/${year}";
@@ -72,7 +75,6 @@ if (! -e $gacfile) {
 @uvfiles = &getuvfiles($nowtime);
 $contfile = "cont_65.5_0.xyz";
 
-#$gacfile = $ARGV[0];
 $psfile = "$WORKDIR/sstexample.ps";
 $psfile_viet = "$WORKDIR/sstexample_viet.ps";
 $psfile_korean = "$WORKDIR/sstexample_korean.ps";
